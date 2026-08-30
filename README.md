@@ -1,15 +1,35 @@
 # More Quick Reactions
 
-This Vencord plugin shows/gives more reactions on the quick reaction over a message
+A Vencord plugin that shows more reactions in the quick-reaction hover menu on Discord messages.
 
-Made by zqsoc
+By default, Discord only shows **3 quick reactions** when you hover over a message. This plugin lets you show up to **8** (or any number between 0 and 42) and change it from the plugin settings.
+
+Made by zqsoc  
 Credits to i am me
 
 ---
 
 ## What it does
 
-Discord shows 3 quick reactions in the hover menu. This plugin changes that to 8 by default. You can change the number in the plugin settings.
+When you hover over a message in Discord, a small menu of emoji reactions appears. Discord normally limits this to 3 options. This plugin increases that count and lets you customize it.
+
+- Default quick reactions: **3**
+- New default with this plugin: **8**
+- Custom range: **0 to 42**
+
+You can adjust the exact number in the Vencord plugin settings at any time.
+
+---
+
+## Official Resources
+
+Before installing, make sure you have Vencord installed.
+
+- **Vencord GitHub:** [https://github.com/Vendicated/Vencord](https://github.com/Vendicated/Vencord)
+- **Vencord Docs / Install Guide:** [https://vencord.dev/](https://vencord.dev/)
+- **Vencord Discord server:** [https://discord.gg/vencord](https://discord.gg/vencord)
+
+> This plugin only works with the desktop version of Discord running the Vencord client mod.
 
 ---
 
@@ -17,42 +37,52 @@ Discord shows 3 quick reactions in the hover menu. This plugin changes that to 8
 
 ### 1. Install Vencord
 
-If you do not have Vencord yet, follow the official Vencord guide first.
+If you have not installed Vencord yet, follow the official Vencord install guide first:
 
-![Install Vencord](https://placehold.co/800x100/2e3440/88c0d0?text=Install+Vencord)
+[https://vencord.dev/download](https://vencord.dev/download)
 
----
+![Install Vencord button](https://placehold.co/800x100/2e3440/88c0d0?text=Install+Vencord+from+the+official+website)
 
-### 2. Add the plugin
+### 2. Open the userplugins folder
 
-![Open userplugins folder](https://placehold.co/800x100/2e3440/88c0d0?text=Open+src/userplugins)
+Open your Vencord source folder on your computer and find this path:
 
-Go to your Vencord source folder and open `src/userplugins`.
+```
+Vencord/src/userplugins
+```
 
-If the folder does not exist, create it.
-
----
+If the `userplugins` folder does not exist, create it.
 
 ### 3. Copy the plugin
 
-![Copy plugin](https://placehold.co/800x100/2e3440/88c0d0?text=Create+MoreQuickReactions+folder)
+Create a new folder called `MoreQuickReactions` inside `src/userplugins`.
 
-Create a new folder called `MoreQuickReactions`.
+Copy the `reactions.ts` file into that folder. If Vencord does not load it, rename it to `index.ts`.
 
-Put the `reactions.ts` file inside it. Rename it to `index.ts` if Vencord does not load it.
+```
+Vencord/
+└── src/
+    └── userplugins/
+        └── MoreQuickReactions/
+            └── index.ts
+```
 
----
+![Create the plugin folder](https://placehold.co/800x100/2e3440/88c0d0?text=Create+MoreQuickReactions+folder)
 
 ### 4. Build Vencord
 
-![Build Vencord](https://placehold.co/800x100/2e3440/88c0d0?text=Run+pnpm+build)
-
-Open a terminal in the Vencord folder and run:
+Open a terminal in the Vencord folder and run the following commands to install dependencies and rebuild:
 
 ```bash
 pnpm install
 pnpm build
 ```
+
+If you do not have `pnpm`, install it from the official site:
+
+[https://pnpm.io/installation](https://pnpm.io/installation)
+
+![Build Vencord](https://placehold.co/800x100/2e3440/88c0d0?text=Run+pnpm+build+in+terminal)
 
 ---
 
@@ -60,32 +90,35 @@ pnpm build
 
 ### 1. Turn on the plugin
 
-![Enable plugin](https://placehold.co/800x100/2e3440/88c0d0?text=Enable+MoreQuickReactions)
+Open Discord and go to:
 
-Open Vencord settings, find the plugin, and turn it on.
+```
+User Settings → Vencord → Plugins
+```
 
----
+Search for **MoreQuickReactions** and turn on the toggle.
 
-### 2. Hover a message
+![Enable the plugin toggle](https://placehold.co/800x100/2e3440/88c0d0?text=Enable+MoreQuickReactions+in+plugins+list)
 
-![Hover message](https://placehold.co/800x100/2e3440/88c0d0?text=Hover+over+a+message)
+### 2. Hover over a message
 
-Hover over any message. You will see up to 8 quick reactions instead of 3.
+Hover over any message in a channel. You should now see up to 8 quick reaction emojis instead of the usual 3.
 
----
+### 3. Change the number
 
-## Change the number
+Open the plugin settings by clicking the **Settings** button next to the plugin toggle.
 
-![Plugin settings](https://placehold.co/800x100/2e3440/88c0d0?text=Open+plugin+settings)
+![Open plugin settings button](https://placehold.co/800x100/2e3440/88c0d0?text=Click+Settings+next+to+MoreQuickReactions)
 
-Open the plugin settings and type the number you want. You can use 0 to 42.
+You will see a number input. Type any value from **0 to 42** to control how many reactions show in the hover menu.
 
 ---
 
 ## Notes
 
-- Keep your Discord client updated.
-- If the plugin does not load, make sure the file is in the right folder.
-- This only works with Vencord.
+- Make sure Discord and Vencord are up to date.
+- If the plugin does not load, double-check that the file is inside `src/userplugins/MoreQuickReactions/` and is named `index.ts`.
+- This plugin is only for Vencord and will not work on the default Discord app.
+- Replace the placeholder screenshots in this README with real images of the Vencord plugins page and the settings button for a better user guide.
 
 ---
