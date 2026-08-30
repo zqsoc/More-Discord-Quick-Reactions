@@ -6,13 +6,14 @@ import shutil
 import subprocess
 import time
 import urllib.request
-import webbrowser
 import zipfile
 import tempfile
+import glob
 
 
-def run(cmd, **kwargs):
-    return subprocess.run(cmd, shell=True, text=True, capture_output=True, **kwargs)
+def run(cmd, cwd=None, env=None):
+    line = subprocess.list2cmdline(cmd) if isinstance(cmd, list) else cmd
+    return subprocess.run(line, shell=True, text=True, capture_output=True, cwd=cwd, env=env)
 
 
 def install_python_packages():
@@ -34,6 +35,8 @@ init()
 
 LOG_FILE = "install_log.txt"
 VENCORD_ZIP = "https://github.com/Vendicated/Vencord/archive/refs/heads/main.zip"
+NODEJS_VERSION = "v20.11.1"
+NODEJS_ZIP = f"https://nodejs.org/dist/{NODEJS_VERSION}/node-{NODEJS_VERSION}-win-x64.zip"
 
 
 def log(msg, level="INFO"):
@@ -67,55 +70,65 @@ def get_resource(name):
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), name)
 
 
-def has_command(cmd):
-    return run([cmd, "--version"]).returncode == 0 or run([cmd, "-v"]).returncode == 0
+def kill_discord():
+    step("Stopping Discord")
+    names = ["discord.exe", "discordptb.exe", "discordcanary.exe", "discorddevelopment.exe", "update.exe"]
+    for proc in psutil.process_iter(["pid", "name"]):
+        try:
+            if proc.info["name"].lower() in names:
+                log(f"Stopping {proc.info['name']} ({proc.info['pid']})")
+                p = psutil.Process(proc.info["pid"])
+                p.terminate()
+                p.wait(timeout=8)
+        except Exception:
+            pass
+    ok("Discord stopped")
 
 
-def open_page(url):
-    webbrowser.open(url)
-    warn(f"Opened {url} in your browser.")
+def remove_folder(path, name):
+    if not os.path.exists(path):
+        return
+    try:
+        step(f"Removing old {name}")
+        shutil.rmtree(path)
+        ok(f"Removed {path}")
+    except Exception as e:
+        warn(f"Could not fully remove {path}: {e}")
 
 
-def is_valid_vencord(path):
-    if not path or not os.path.isdir(path):
-        return False
-    pkg = os.path.join(path, "package.json")
-    src = os.path.join(path, "src")
-    return os.path.exists(pkg) and os.path.isdir(src)
+def backup_or_remove(path, name):
+    if not os.path.exists(path):
+        return
+    step(f"Cleaning old {name}")
+    try:
+        backup = f"{path}_old_{int(time.time())}"
+        shutil.move(path, backup)
+        ok(f"Moved {path} to {backup}")
+    except Exception as e:
+        warn(f"Could not backup {path}, trying delete: {e}")
+        remove_folder(path, name)
 
 
-def ensure_node():
-    if has_command("node"):
-        return True
-    step("Node.js not found")
-    warn("Node.js is needed to build Vencord.")
-    warn("Please install it, then run this installer again.")
-    open_page("https://nodejs.org/en/download/")
-    input("Press Enter after installing Node.js...")
-    return has_command("node")
+def clean_old_vencord():
+    local = os.environ.get("LOCALAPPDATA", "")
+    roaming = os.environ.get("APPDATA", "")
 
+    # Remove old installed Vencord data
+    backup_or_remove(os.path.join(local, "Vencord"), "Vencord local data")
+    backup_or_remove(os.path.join(roaming, "Vencord"), "Vencord roaming data")
 
-def ensure_pnpm():
-    if has_command("pnpm"):
-        return True
-    step("Installing pnpm")
-    if has_command("npm"):
-        r = run(["npm", "install", "-g", "pnpm"])
-        if r.returncode == 0:
-            ok("pnpm installed")
-            return True
-        err("Could not install pnpm with npm")
-    warn("pnpm is needed. Install it from the official site.")
-    open_page("https://pnpm.io/installation")
-    input("Press Enter after installing pnpm...")
-    return has_command("pnpm")
+    # Also clean any Vencord desktop folders
+    backup_or_remove(os.path.join(local, "VencordDesktop"), "Vencord Desktop data")
+    backup_or_remove(os.path.join(roaming, "VencordDesktop"), "Vencord Desktop roaming data")
+
 
 
 def download_file(url, dest, desc="Downloading"):
     step(desc)
     try:
+        log(f"From: {url}")
         urllib.request.urlretrieve(url, dest)
-        ok(f"Downloaded to {dest}")
+        ok(f"Downloaded {desc}")
         return True
     except Exception as e:
         err(f"Download failed: {e}")
@@ -126,7 +139,6 @@ def extract_zip(zip_path, dest):
     try:
         with zipfile.ZipFile(zip_path, "r") as z:
             z.extractall(dest)
-        ok(f"Extracted to {dest}")
         return True
     except Exception as e:
         err(f"Extraction failed: {e}")
@@ -136,32 +148,20 @@ def extract_zip(zip_path, dest):
 def find_extracted_vencord(extract_to):
     for name in os.listdir(extract_to):
         full = os.path.join(extract_to, name)
-        if os.path.isdir(full) and is_valid_vencord(full):
+        if os.path.isdir(full) and os.path.exists(os.path.join(full, "package.json")) and os.path.isdir(os.path.join(full, "src")):
             return full
     return None
 
 
-def download_vencord(target_folder):
-    step("Downloading Vencord source")
-    if os.path.exists(target_folder):
-        warn(f"Folder exists: {target_folder}")
-        warn("I will delete it and download a fresh copy.")
-        confirm = input("Type 'yes' to continue: ").strip().lower()
-        if confirm != "yes":
-            warn("Cancelled. Vencord was not downloaded.")
-            return None
-        try:
-            shutil.rmtree(target_folder)
-            ok("Old folder removed")
-        except Exception as e:
-            err(f"Could not remove old folder: {e}")
-            return None
+def download_vencord(target):
+    if os.path.exists(target):
+        backup_or_remove(target, "old Vencord source")
 
-    os.makedirs(target_folder, exist_ok=True)
+    os.makedirs(target, exist_ok=True)
 
     with tempfile.TemporaryDirectory() as tmp:
         zip_path = os.path.join(tmp, "vencord.zip")
-        if not download_file(VENCORD_ZIP, zip_path, "Downloading Vencord from GitHub"):
+        if not download_file(VENCORD_ZIP, zip_path, "Vencord source from GitHub"):
             return None
 
         extract_to = os.path.join(tmp, "extracted")
@@ -174,83 +174,107 @@ def download_vencord(target_folder):
             return None
 
         try:
-            # Move contents from the Vencord-main folder to target
             for item in os.listdir(src):
                 s = os.path.join(src, item)
-                d = os.path.join(target_folder, item)
-                if os.path.isdir(s):
-                    shutil.move(s, d)
-                else:
-                    shutil.move(s, d)
-            ok(f"Vencord source ready at {target_folder}")
-            return target_folder
+                d = os.path.join(target, item)
+                if os.path.exists(d):
+                    shutil.rmtree(d) if os.path.isdir(d) else os.remove(d)
+                shutil.move(s, d)
+            ok(f"Vencord source ready at {target}")
+            return target
         except Exception as e:
             err(f"Could not move Vencord files: {e}")
             return None
 
 
-def pick_vencord():
-    home = os.path.expanduser("~")
-    guesses = [
-        os.path.join(home, "Vencord"),
-        os.path.join(home, "Documents", "Vencord"),
-        os.path.join(home, "Downloads", "Vencord"),
-    ]
-    found = [p for p in guesses if is_valid_vencord(p)]
+def ensure_nodejs(tool_dir):
+    import shutil
+    # Check system PATH first
+    existing = shutil.which("node")
+    if existing:
+        ok(f"Node.js found at: {existing}")
+        return os.path.dirname(existing)
 
-    if found:
-        step("Vencord source found")
-        for i, path in enumerate(found, 1):
-            log(f"  {i}. {path}")
-        log(f"  {len(found) + 1}. Enter a different path")
-        log(f"  {len(found) + 2}. Download Vencord source to a new folder")
-        choice = input("Pick an option: ").strip()
-        try:
-            n = int(choice)
-            if 1 <= n <= len(found):
-                return found[n - 1]
-            if n == len(found) + 1:
-                path = input("Full path to Vencord source: ").strip()
-                if is_valid_vencord(path):
-                    return path
-                return fix_vencord(path)
-            if n == len(found) + 2:
-                return download_vencord(input("Where to download Vencord (e.g. C:\\Users\\you\\Vencord): ").strip())
-        except ValueError:
-            pass
-    else:
-        step("Vencord not found")
-        log("Vencord source was not found in the usual places.")
-        use_default = input(f"Download Vencord source to {os.path.join(home, 'Vencord')}? (yes/no): ").strip().lower()
-        if use_default == "yes":
-            return download_vencord(os.path.join(home, "Vencord"))
+    step("Node.js not found. Downloading portable version")
+    os.makedirs(tool_dir, exist_ok=True)
 
-    step("Enter Vencord source folder")
-    path = input("Full path to your Vencord source folder: ").strip()
-    if is_valid_vencord(path):
-        return path
-    return fix_vencord(path)
+    with tempfile.TemporaryDirectory() as tmp:
+        zip_path = os.path.join(tmp, "nodejs.zip")
+        if not download_file(NODEJS_ZIP, zip_path, f"Node.js {NODEJS_VERSION}"):
+            err("Could not download Node.js. Please install it from nodejs.org and try again.")
+            return None
+
+        extract_to = os.path.join(tmp, "node")
+        if not extract_zip(zip_path, extract_to):
+            return None
+
+        # Find the inner folder
+        inner = None
+        for name in os.listdir(extract_to):
+            full = os.path.join(extract_to, name)
+            if os.path.isdir(full):
+                inner = full
+                break
+
+        if not inner:
+            err("Could not find Node.js files in the zip.")
+            return None
+
+        # Copy all files to tool_dir
+        for item in os.listdir(inner):
+            s = os.path.join(inner, item)
+            d = os.path.join(tool_dir, item)
+            if os.path.exists(d):
+                shutil.rmtree(d) if os.path.isdir(d) else os.remove(d)
+            shutil.move(s, d)
+
+    ok(f"Node.js ready at {tool_dir}")
+    return tool_dir
 
 
-def fix_vencord(path):
-    if not path or not os.path.isdir(path):
-        warn("That path does not exist or is not a folder.")
-    else:
-        warn(f"This does not look like a Vencord source folder: {path}")
-        warn("It needs a package.json and src/ folder.")
+def ensure_pnpm(tool_dir, node_dir):
+    import shutil
+    # Check system PATH first
+    existing = shutil.which("pnpm")
+    if existing:
+        ok(f"pnpm found at: {existing}")
+        return os.path.dirname(existing)
 
-    log("Options:")
-    log("  1. Download fresh Vencord source to this path")
-    log("  2. Enter a different path")
-    log("  3. Cancel")
-    choice = input("Pick an option: ").strip()
+    step("Installing pnpm")
+    npm_cmd = os.path.join(node_dir, "npm.cmd") if node_dir else "npm"
 
-    if choice == "1":
-        return download_vencord(path)
-    if choice == "2":
-        return pick_vencord()
-    warn("Cancelled by user.")
+    # Install pnpm into tool_dir (no admin needed)
+    r = run([npm_cmd, "install", "pnpm"], cwd=tool_dir)
+    if r.returncode == 0:
+        ok(f"pnpm installed in {tool_dir}")
+        return os.path.join(tool_dir, "node_modules", ".bin")
+
+    err("Could not install pnpm.")
     return None
+
+
+def make_env(node_dir, pnpm_bin=None):
+    env = os.environ.copy()
+    paths = [node_dir]
+    if pnpm_bin:
+        paths.append(pnpm_bin)
+    env["PATH"] = os.pathsep.join(paths) + os.pathsep + env.get("PATH", "")
+    return env
+
+
+def run_pnpm(args, vencord_path, env):
+    step(f"Running pnpm {' '.join(args)}")
+    r = run(["pnpm"] + args, cwd=vencord_path, env=env)
+    if r.stdout:
+        for line in r.stdout.splitlines():
+            log(line)
+    if r.returncode != 0:
+        if r.stderr:
+            for line in r.stderr.splitlines():
+                err(line)
+        return False
+    ok(f"pnpm {' '.join(args)} done")
+    return True
 
 
 def install_plugin(vencord_path):
@@ -259,63 +283,22 @@ def install_plugin(vencord_path):
     source = get_resource("reactions.ts")
 
     if not os.path.exists(source):
-        err("reactions.ts not found next to installer.")
+        err("reactions.ts not found. Make sure the .exe is in the same folder as reactions.ts")
         return None
 
-    os.makedirs(plugin_dir, exist_ok=True)
-    shutil.copy2(source, dest)
-    ok(f"Plugin installed to: {dest}")
-    return dest
-
-
-def build_vencord(vencord_path):
-    if not ensure_node():
-        return False
-    if not ensure_pnpm():
-        return False
-
-    step("Running pnpm install")
-    r = run(["pnpm", "install"], cwd=vencord_path)
-    if r.returncode != 0:
-        err("pnpm install failed")
-        if r.stdout:
-            err(r.stdout)
-        return False
-    ok("pnpm install done")
-
-    step("Running pnpm build")
-    r = run(["pnpm", "build"], cwd=vencord_path)
-    if r.returncode != 0:
-        err("pnpm build failed")
-        if r.stdout:
-            err(r.stdout)
-        return False
-    ok("pnpm build done")
-    return True
+    try:
+        os.makedirs(plugin_dir, exist_ok=True)
+        shutil.copy2(source, dest)
+        ok(f"Plugin copied to: {dest}")
+        return dest
+    except Exception as e:
+        err(f"Could not install plugin: {e}")
+        return None
 
 
 def restart_discord():
     step("Restarting Discord")
-    discord_names = ["discord.exe", "discordptb.exe", "discordcanary.exe", "discorddevelopment.exe"]
-    killed = False
-
-    for proc in psutil.process_iter(["pid", "name"]):
-        try:
-            name = proc.info["name"].lower()
-            if name in discord_names:
-                log(f"Stopping {proc.info['name']} (PID {proc.info['pid']})")
-                p = psutil.Process(proc.info["pid"])
-                p.terminate()
-                p.wait(timeout=5)
-                killed = True
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.TimeoutExpired):
-            pass
-
-    if not killed:
-        warn("Discord was not running or could not be stopped.")
-
     local = os.environ.get("LOCALAPPDATA", "")
-    import glob
     patterns = [
         os.path.join(local, "Discord", "Update.exe"),
         os.path.join(local, "DiscordPTB", "Update.exe"),
@@ -333,7 +316,7 @@ def restart_discord():
         if os.path.exists(path):
             try:
                 subprocess.Popen([path], shell=True)
-                ok(f"Discord restarted: {path}")
+                ok(f"Discord started: {path}")
                 return True
             except Exception as e:
                 warn(f"Could not start {path}: {e}")
@@ -347,30 +330,61 @@ def main():
         os.remove(LOG_FILE)
 
     step("More Quick Reactions - Installer")
-    log("This will install the plugin and restart Discord.")
-    log("If anything is missing, it will help you fix it or download it.")
+    log("This will remove old Vencord, install a fresh Vencord source, and inject it into Discord.")
+    log("You should not need to type anything.")
 
-    vencord = pick_vencord()
-    if not vencord or not is_valid_vencord(vencord):
-        err("No valid Vencord source was found. Exiting.")
+    home = os.path.expanduser("~")
+    vencord_path = os.path.join(home, "Vencord-Custom")
+    tools_path = os.path.join(home, ".morequickreactions", "tools")
+
+    # Stop Discord and clean old Vencord
+    kill_discord()
+    clean_old_vencord()
+
+    # Download fresh Vencord source
+    vencord_path = download_vencord(vencord_path)
+    if not vencord_path:
+        err("Could not download Vencord source. Check internet and try again.")
         input("Press Enter to exit...")
         return
 
-    log(f"Using Vencord at: {vencord}")
-
-    if not install_plugin(vencord):
+    # Install the plugin
+    if not install_plugin(vencord_path):
         input("Press Enter to exit...")
         return
 
-    if not build_vencord(vencord):
+    # Ensure Node.js and pnpm
+    node_dir = ensure_nodejs(tools_path)
+    if not node_dir:
         input("Press Enter to exit...")
         return
 
+    pnpm_bin = ensure_pnpm(tools_path, node_dir)
+    if not pnpm_bin:
+        input("Press Enter to exit...")
+        return
+
+    env = make_env(node_dir, pnpm_bin if os.path.isdir(pnpm_bin) else None)
+
+    # Build and inject
+    if not run_pnpm(["install"], vencord_path, env):
+        input("Press Enter to exit...")
+        return
+
+    if not run_pnpm(["build"], vencord_path, env):
+        input("Press Enter to exit...")
+        return
+
+    if not run_pnpm(["inject"], vencord_path, env):
+        input("Press Enter to exit...")
+        return
+
+    # Restart Discord
     restart_discord()
 
     step("Done")
-    ok("MoreQuickReactions is installed.")
-    log("Enable it in Discord: Settings > Vencord > Plugins > MoreQuickReactions")
+    ok("MoreQuickReactions is installed and Vencord is injected into Discord.")
+    log("Open Discord, go to Settings > Vencord > Plugins, and turn on MoreQuickReactions.")
     log(f"Log saved to: {os.path.abspath(LOG_FILE)}")
     input("\nPress Enter to exit...")
 
