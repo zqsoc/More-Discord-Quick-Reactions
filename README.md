@@ -120,5 +120,6 @@ You will see a number input. Type any value from **0 to 42** to control how many
 - If the plugin does not load, double-check that the file is inside `src/userplugins/MoreQuickReactions/` and is named `index.ts`.
 - This plugin is only for Vencord and will not work on the default Discord app.
 - Replace the placeholder screenshots in this README with real images of the Vencord plugins page and the settings button for a better user guide.
+- This readme was made by AI i did NOT want to make this
 
 ---
