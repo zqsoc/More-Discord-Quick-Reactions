@@ -35,8 +35,9 @@ The easiest way is to use the `MoreQuickReactions-Installer.exe` included in thi
 
 1. Run the `.exe`
 2. It will detect your Vencord folder or ask you for the path
-3. It will install the plugin, build Vencord, and restart Discord for you
-4. If Node.js, pnpm, or Vencord is missing, it will tell you where to get them
+3. If Vencord is not installed as source code, it can download it from GitHub for you
+4. It will install the plugin, build Vencord, and restart Discord for you
+5. If Node.js or pnpm is missing, it will help you install them
 
 After it finishes, open Discord, go to `Settings > Vencord > Plugins`, and turn on `MoreQuickReactions`.
 
