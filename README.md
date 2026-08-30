@@ -3,7 +3,8 @@
 This Vencord plugin shows/gives more reactions on the quick reaction over a message
 
 Made by zqsoc
-Credits to i am me 
+Credits to i am me
+
 ---
 
 ## What it does
