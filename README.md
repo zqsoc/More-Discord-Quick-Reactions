@@ -1,9 +1,9 @@
 # More Quick Reactions
 
-This Vencord plugin shows more reactions when you hover over a message.
+This Vencord plugin shows/gives more reactions on the quick reaction over a message
 
-Made by zqsoc.
-
+Made by zqsoc
+Credits to i am me 
 ---
 
 ## What it does
@@ -88,5 +88,3 @@ Open the plugin settings and type the number you want. You can use 0 to 42.
 - This only works with Vencord.
 
 ---
-
-Made by zqsoc
